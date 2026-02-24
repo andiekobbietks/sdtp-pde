@@ -1,139 +1,75 @@
 
 
-# Plan: Unified PDE with Collapsible + Undockable Panels and Animated CLI
+# Plan: Full Browser PDE Experience — StackBlitz Codeflow-Grade Implementation
 
-## Summary
+## Current State
 
-Build the unified Pedagogical Development Environment at `/pde` that consolidates the WebContainer editor (centerpiece), Architecture Canvas, SQL Workbench (with real sql.js execution), LAMPForge CLI (with animated ASCII banner and help system), and Evidence Log into a single workspace with collapsible and undockable panels. The landing page routes to `/pde` after forging. All existing pages remain untouched.
+The PDE exists at `/pde` with collapsible/undockable panels, a WebContainer editor, CLI, SQL Workbench, and Evidence Log. However the WebContainer editor is configured minimally — it uses `view: "editor"` (editor-only, no preview pane), `terminalHeight: 30`, and doesn't leverage the full StackBlitz SDK VM capabilities. For RAD 2.0 mode, the user wants a full Codeflow-grade IDE experience: file explorer, terminal, preview pane, split editor views, and sidebar toggling — all controlled programmatically via the VM API.
 
-## New Files (7)
+## What Changes
 
-### 1. `src/pages/PDEPage.tsx` — The Unified Environment
+### 1. Enhanced WebContainer Editor for RAD 2.0 (`src/components/canvas/WebContainerEditor.tsx`)
 
-Master workspace using `ResizablePanelGroup`:
+Upgrade the WebContainer embed to expose full Codeflow capabilities based on scaffold level:
 
-- **State**: `panelStates: Record<string, "visible" | "hidden" | "undocked">` for panels: `canvas`, `sql`, `cli`, `evidence`
-- **Layout**: Vertical split (top 70% / bottom 30%). Top area is horizontal split: left = collapsible Architecture Canvas (React Flow with entity/transaction/relationship nodes), right = WebContainer Editor (always visible, expands to full width when canvas hidden). Bottom area = tabbed panels (CLI, SQL Workbench, Evidence Log)
-- **Panel toggle bar** in header: pill buttons with hide/show toggle + undock (`ExternalLink` icon) per panel
-- **Blueprint consumption**: Same `sessionStorage` pattern as current CanvasPage — reads blueprint on mount, populates nodes, generates files, animates DDL
-- **RAD 2.0 mode**: All panels visible by default. Other modes: only CLI + editor visible
-- **BroadcastChannel**: Creates `"lampforge-pde"` channel for cross-tab sync with undocked panels
+- **RAD 2.0 mode**: `view: "default"` (editor + preview split), `showSidebar: true`, `sidebarView: "project"`, `terminalHeight: 40`, `hideExplorer: false`, multiple `openFile` tabs (`sql/schema.sql,php/db_connect.php,html/forms/index.html`)
+- **Other levels**: `view: "editor"`, `showSidebar: false`, `terminalHeight: 25`, single `openFile`
+- **New props**: Accept `scaffoldLevel` prop to configure the embed appropriately
+- **Expose more VM methods** via the imperative handle:
+  - `openFile(path)` — delegates to `vm.editor.openFile`
+  - `setView(view)` — delegates to `vm.editor.setView` (switch between editor/preview/default)
+  - `showSidebar(visible)` — delegates to `vm.editor.showSidebar`
+  - `setCurrentFile(path)` — delegates to `vm.editor.setCurrentFile`
+  - `getPreviewUrl()` — delegates to `vm.preview.getUrl`
+- **Cross-origin isolation**: Enable `crossOriginIsolated: true` for better WebContainer performance
 
-### 2. `src/pages/PDEPanelPage.tsx` — Undocked Panel Route
+### 2. PDEPage passes scaffold level to WebContainer (`src/pages/PDEPage.tsx`)
 
-Route at `/pde/panel/:panelId` rendering a single panel full-screen in a new browser tab:
+- Pass `scaffoldLevel` from the blueprint to `WebContainerEditor` so it configures itself for the right mode
+- When scaffold level is RAD 2.0, the WebContainer shows the full IDE experience (file explorer, terminal, preview) — resembling StackBlitz Codeflow
+- For non-RAD levels, the WebContainer shows a simplified editor-only view to avoid overwhelming the student
+- Add toolbar buttons to toggle WebContainer view mode (editor/preview/both) using the new `setView` handle method
+- Add a "Preview" button in the header that calls `vm.editor.setView("default")` to show the running app alongside the code
 
-- Reads `panelId` from URL params (`"canvas"`, `"sql"`, `"cli"`, `"evidence"`)
-- Renders the corresponding panel component full-viewport
-- Joins `"lampforge-pde"` BroadcastChannel for state sync
-- On `beforeunload`, broadcasts `panel-closed` so main PDE re-docks
-- Reads initial state from `sessionStorage`, then relies on BroadcastChannel for live updates
-- Minimal chrome: panel name header + "Return to PDE" link
+### 3. Richer project scaffold for RAD 2.0 (`src/lib/webcontainer-project.ts`)
 
-### 3. `src/components/pde/SQLWorkbenchPanel.tsx` — Real SQL Execution
+Enhance the embedded project for RAD 2.0 mode:
 
-Self-contained SQL workbench using `sql.js` for real in-browser SQLite:
+- Add a `.lampforge/README.md` file explaining the project structure and how to use the PDE
+- Add a `.lampforge/help.md` with the same content as the CLI `help` command output — the 5-Family Taxonomy, available commands, and how the PDE works. This file is viewable in the editor and acts as in-IDE documentation
+- Add a `vite.config.js` + switch from Express to Vite for the dev server in RAD 2.0 mode — this enables sub-second HMR as described in the master narrative. The project will use `vite` as the dev server with an `index.html` entry point, making the preview pane update instantly on file changes
+- For non-RAD levels, keep the existing Express-based `server.js` setup (simpler, more familiar to students)
+- Accept `scaffoldLevel` parameter in `buildProject` to conditionally include the Vite setup
 
-- **sql.js init**: `initSqlJs({ locateFile: file => \`https://sql.js.org/dist/${file}\` })` on mount, creates in-memory DB
-- **Auto-seed**: When blueprint available, runs `adaptDDLForSQLite(generateDDL(blueprint))` to create tables
-- **`adaptDDLForSQLite(ddl)`**: Strips MySQL syntax — removes `ENGINE=InnoDB`, `AUTO_INCREMENT`, `CREATE DATABASE`/`USE`, `ON UPDATE CURRENT_TIMESTAMP`, converts backtick quoting
-- **Monaco editor** for SQL input (reuses `CodeEditor` component)
-- **Schema explorer sidebar**: queries `sqlite_master` for table list, clicking table inserts `SELECT * FROM {table};`
-- **Results grid**: `Table` UI component for tabular output
-- **Query history**: stored in state, clickable to replay
-- **BroadcastChannel**: broadcasts results, receives blueprint updates
+### 4. Undocked Canvas — Full React Flow in separate tab (`src/pages/PDEPanelPage.tsx`)
 
-### 4. `src/components/pde/PanelToggleBar.tsx` — Toggle + Undock Controls
+Replace the "coming soon" placeholder for the canvas panel with a full React Flow canvas:
 
-Header toolbar with pill-shaped buttons per panel:
+- Import and render the same React Flow setup as PDEPage (entity nodes, transaction nodes, relationship edges)
+- Read blueprint from `sessionStorage` to populate nodes/edges
+- Listen on BroadcastChannel for `blueprint-update` messages to sync state
+- Include the "Add Entity" and "Add Transaction" buttons
 
-- Each has toggle (show/hide) and undock (`ExternalLink` icon) actions
-- Visual states: highlighted when visible, muted when hidden, distinct "undocked" indicator
-- Compact horizontal layout
+### 5. Non-RAD scaffold level defaults (`src/pages/PDEPage.tsx`)
 
-### 5. `src/components/pde/EvidencePanel.tsx` — Inline Evidence Timeline
+Refine the panel defaults based on scaffold level:
 
-Compact version of Evidence page for embedding in bottom tabs:
-
-- Receives `logs: LogEntry[]` as props
-- Same timeline UI without header/sidebar chrome
-- Auto-captures PDE actions (queries, file changes, node additions)
-
-### 6. `src/lib/pde-channel.ts` — BroadcastChannel Utilities
-
-Typed wrapper for cross-tab communication:
-
-- Message types: `blueprint-update`, `terminal-output`, `sql-result`, `panel-closed`, `panel-undocked`
-- `createPDEChannel()`, `broadcastMessage()`, `onMessage()` helpers
-- Cleanup on unmount
-
-### 7. `src/components/pde/CLIPanel.tsx` — Enhanced LAMPForge CLI
-
-Enhanced version of `TerminalPanel` with:
-
-- **Animated ASCII banner** on first load — frame-based animation of LAMPForge logo using semantic ANSI color roles mapped to the forge design token palette (blueprint=blue, transaction=orange, plumbing=green, forge=red, oracle=purple). ~10 frames, 80ms per frame, renders via React state updates. Respects `prefers-reduced-motion` — skips animation if set
-- **`help` command implementation**: Rich help output explaining the 5-Family Taxonomy (Blueprint, Plumbing, Transaction, Forge, Oracle), available commands, keyboard shortcuts, and how the PDE works. Structured as a scrollable ASCII document with section headers
-- **Admin-extensible command registry**: Commands stored as a `Map<string, CommandHandler>` where `CommandHandler = (args: string[], ctx: CLIContext) => string[]`. Built-in commands: `help`, `clear`, `schema`, `tables`, `describe <table>`, `forge <intent>`, `level <scaffold>`, `export`, `history`. New commands can be registered via `registerCommand(name, handler)`
-- **`schema` command**: Dumps current DDL to terminal
-- **`tables` command**: Lists all entities from current blueprint
-- **`describe <table>` command**: Shows fields, types, constraints for a specific entity
-- **`forge <intent>` command**: Triggers a new forge cycle from the CLI
-- **`level` command**: Shows/changes current scaffold level
-- **`export` command**: Triggers evidence export
-- **`history` command**: Shows command history
-
-## Modified Files (2)
-
-### 8. `src/App.tsx`
-
-- Import `PDEPage` and `PDEPanelPage`
-- Add routes: `/pde` → `PDEPage`, `/pde/panel/:panelId` → `PDEPanelPage`
-- All existing routes remain untouched
-
-### 9. `src/pages/LandingPage.tsx`
-
-- Change line 91: `navigate("/canvas")` → `navigate("/pde")`
-- Everything else stays exactly as-is
+- **Exploratory**: Only CLI visible in bottom area, canvas hidden, SQL hidden, evidence hidden. WebContainer in editor-only mode. Minimal cognitive load
+- **Competent**: CLI + canvas visible, SQL hidden, evidence hidden. WebContainer in editor-only mode
+- **Exemplary**: CLI + canvas + SQL visible, evidence hidden. WebContainer in editor-only mode
+- **RAD 2.0**: All panels visible. WebContainer in full Codeflow mode (editor + preview + terminal + sidebar). Maximum capability
 
 ## Technical Details
 
-- **Undocking flow**: User clicks `⧉` → `window.open("/pde/panel/sql", "_blank")` → panel marked as `"undocked"` in main PDE → BroadcastChannel syncs state → closing undocked tab broadcasts `panel-closed` → main PDE re-docks panel
-- **sql.js WASM**: Loaded from CDN. SQLite used as MySQL stand-in. `adaptDDLForSQLite` handles syntax translation
-- **Panel persistence**: `sessionStorage` stores panel visibility states within session
-- **ResizablePanel collapse**: Uses `collapsible={true}` and `collapsedSize={0}` from `react-resizable-panels`
-- **ASCII animation**: Frame array of string templates, each with duration and color map. Colors reference design tokens (forge-blueprint, forge-transaction, etc.). Rendered via `useState` + `setInterval`. Auto-plays once on PDE mount, then shows static logo
-- **No existing pages are deleted or modified** beyond the two listed above
+- **StackBlitz SDK VM API**: The `VM` class exposes `editor.openFile`, `editor.setView`, `editor.showSidebar`, `editor.setCurrentFile`, `editor.setTheme`, `preview.getUrl`, `preview.setUrl`. These are all available after `embedProject` resolves. Currently only `applyFsDiff` and `getFsSnapshot` are used
+- **Vite in WebContainer**: The StackBlitz WebContainer natively supports Vite — `template: "node"` with a `vite` dependency in `package.json` and `"dev": "vite"` as the start script. This gives HMR in the preview pane
+- **No breaking changes**: All existing pages (`/canvas`, `/workbench`, `/evidence`) remain untouched. The `buildProject` function gains an optional `scaffoldLevel` parameter with a default that preserves current behavior
+- **`crossOriginIsolated: true`**: Enables SharedArrayBuffer in the WebContainer, improving performance for filesystem operations
 
-```text
-User Flow After Forge:
-Landing Page → /pde
-┌──────────────────────────────────────────────┐
-│ Header: [LAMPForge PDE] [⊞Canvas] [⊞SQL]    │
-│         [⊞CLI] [⊞Evidence] [Run]             │
-├────────────────┬─────────────────────────────┤
-│ Architecture   │ WebContainer Editor         │
-│ Canvas         │ (StackBlitz embedded)       │
-│ (collapsible)  │ (centerpiece)               │
-│ (undockable)   │                             │
-├────────────────┴─────────────────────────────┤
-│ [CLI] [SQL Workbench] [Evidence]             │
-│ ┌──────────────────────────────────────────┐ │
-│ │ LAMPForge CLI v1.0.0                     │ │
-│ │ ╔═══════════════════════╗                │ │
-│ │ ║  LAMP  ╔═╗ FORGE     ║ (animated)     │ │
-│ │ ╚═══════════════════════╝                │ │
-│ │ Type 'help' for available commands.      │ │
-│ │ lampforge>                               │ │
-│ └──────────────────────────────────────────┘ │
-└──────────────────────────────────────────────┘
+## Modified Files Summary
 
-Undocked panel (separate browser tab):
-/pde/panel/sql
-┌──────────────────────────────────────────────┐
-│ SQL Workbench (undocked) [↩ Return to PDE]   │
-├──────────────────────────────────────────────┤
-│ Full SQL Workbench with Monaco + results     │
-│ Synced via BroadcastChannel                  │
-└──────────────────────────────────────────────┘
-```
+1. `src/components/canvas/WebContainerEditor.tsx` — Add scaffold-aware config, expose VM editor/preview methods
+2. `src/pages/PDEPage.tsx` — Pass scaffoldLevel, add view toggle buttons, refine panel defaults per level
+3. `src/lib/webcontainer-project.ts` — Add Vite-based project for RAD 2.0, add `.lampforge/` docs
+4. `src/pages/PDEPanelPage.tsx` — Implement full React Flow canvas for undocked view
 

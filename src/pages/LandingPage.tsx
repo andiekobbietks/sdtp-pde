@@ -88,7 +88,7 @@ const LandingPage = () => {
         description: `${result.blueprint.entities.length} entities, scaffold: ${scaffoldLevel}`,
       });
 
-      setTimeout(() => navigate("/canvas"), 500);
+      setTimeout(() => navigate("/pde"), 500);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Forge failed";
       toast.error("Forge Error", { description: message });

@@ -30,6 +30,9 @@ import {
   Database,
   Terminal,
   FileText,
+  Code,
+  Eye,
+  Columns,
 } from "lucide-react";
 import EntityNode from "@/components/canvas/EntityNode";
 import TransactionNode from "@/components/canvas/TransactionNode";
@@ -37,6 +40,7 @@ import ForgeStatusNode from "@/components/canvas/ForgeStatusNode";
 import OracleNode from "@/components/canvas/OracleNode";
 import WebContainerEditor, {
   type WebContainerEditorHandle,
+  type ScaffoldLevel,
 } from "@/components/canvas/WebContainerEditor";
 import CLIPanel from "@/components/pde/CLIPanel";
 import SQLWorkbenchPanel from "@/components/pde/SQLWorkbenchPanel";
@@ -48,7 +52,7 @@ import {
   onMessage,
 } from "@/lib/pde-channel";
 import type { ForgeBlueprint } from "@/lib/forge-types";
-import { generateAllFiles, generateDDL } from "@/lib/sql-generator";
+import { generateAllFiles } from "@/lib/sql-generator";
 
 // ── Panel config ───────────────────────────────────────────────
 
@@ -59,6 +63,23 @@ const PANEL_CONFIGS = [
   { id: "evidence", label: "Evidence", icon: FileText },
 ];
 
+// ── Default panel visibility per scaffold level ────────────────
+
+function getDefaultPanelStates(level: ScaffoldLevel): Record<string, PanelState> {
+  switch (level) {
+    case "exploratory":
+      return { canvas: "hidden", sql: "hidden", cli: "visible", evidence: "hidden" };
+    case "competent":
+      return { canvas: "visible", sql: "hidden", cli: "visible", evidence: "hidden" };
+    case "exemplary":
+      return { canvas: "visible", sql: "visible", cli: "visible", evidence: "hidden" };
+    case "rad":
+      return { canvas: "visible", sql: "visible", cli: "visible", evidence: "visible" };
+    default:
+      return { canvas: "visible", sql: "visible", cli: "visible", evidence: "visible" };
+  }
+}
+
 const PDEPage = () => {
   const navigate = useNavigate();
   const editorRef = useRef<WebContainerEditorHandle>(null);
@@ -66,6 +87,9 @@ const PDEPage = () => {
   // ── React Flow state ────────────────────────────────────────────
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+
+  // ── Scaffold level ─────────────────────────────────────────────
+  const [scaffoldLevel, setScaffoldLevel] = useState<ScaffoldLevel>("exploratory");
 
   // ── Panel states ────────────────────────────────────────────────
   const [panelStates, setPanelStates] = useState<Record<string, PanelState>>(() => {
@@ -78,9 +102,11 @@ const PDEPage = () => {
 
   // ── Blueprint & terminal ────────────────────────────────────────
   const [blueprint, setBlueprint] = useState<ForgeBlueprint | null>(null);
-  const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
   const [evidenceLogs, setEvidenceLogs] = useState<LogEntry[]>([]);
   const [activeBottomTab, setActiveBottomTab] = useState("cli");
+  const [activeView, setActiveView] = useState<"default" | "editor" | "preview">(
+    "default"
+  );
   const hasPopulated = useRef(false);
   const channelRef = useRef<BroadcastChannel | null>(null);
 
@@ -88,6 +114,8 @@ const PDEPage = () => {
     () => ({ entity: EntityNode, transaction: TransactionNode, forgeStatus: ForgeStatusNode, oracle: OracleNode }),
     []
   );
+
+  const isRad = scaffoldLevel === "rad";
 
   // ── Persist panel states ──────────────────────────────────────
   useEffect(() => {
@@ -125,10 +153,7 @@ const PDEPage = () => {
     const provider = sessionStorage.getItem("lampforge-provider") || "unknown";
     const route = sessionStorage.getItem("lampforge-route") || "schema_generation";
 
-    // Keep a copy for PDE panels (don't delete yet so undocked panels can read it)
     sessionStorage.setItem("lampforge-blueprint-pde", raw);
-
-    // Clean up landing page keys
     sessionStorage.removeItem("lampforge-blueprint");
     sessionStorage.removeItem("lampforge-provider");
     sessionStorage.removeItem("lampforge-route");
@@ -141,15 +166,16 @@ const PDEPage = () => {
     }
 
     setBlueprint(bp);
+
+    // Determine scaffold level
+    const level = (bp.scaffold_level as ScaffoldLevel) || "exploratory";
+    setScaffoldLevel(level);
+    setPanelStates(getDefaultPanelStates(level));
+
+    // Set initial view mode
+    setActiveView(level === "rad" ? "default" : "editor");
+
     populateFromBlueprint(bp, provider, route);
-
-    // Determine default panel visibility based on scaffold level
-    if (bp.scaffold_level === "rad") {
-      setPanelStates({ canvas: "visible", sql: "visible", cli: "visible", evidence: "visible" });
-    } else {
-      setPanelStates({ canvas: "visible", sql: "hidden", cli: "visible", evidence: "hidden" });
-    }
-
     addEvidenceLog("milestone", "Project Initialized", `Blueprint forged via ${provider}, scaffold: ${bp.scaffold_level}`);
   }, []);
 
@@ -173,7 +199,7 @@ const PDEPage = () => {
     []
   );
 
-  // ── Blueprint population (same as CanvasPage) ─────────────────
+  // ── Blueprint population ──────────────────────────────────────
   const populateFromBlueprint = (bp: ForgeBlueprint, provider: string, route: string) => {
     const newNodes: Node[] = [];
     const newEdges: Edge[] = [];
@@ -230,18 +256,28 @@ const PDEPage = () => {
     setNodes(newNodes);
     setEdges(newEdges);
 
-    // Push files to WebContainer
-    const files = generateAllFiles(bp);
+    const allFiles = generateAllFiles(bp);
     setTimeout(() => {
-      editorRef.current?.applyFsDiff(files);
+      editorRef.current?.applyFsDiff(allFiles);
     }, 2000);
   };
+
+  // ── View mode toggle (RAD 2.0) ───────────────────────────────
+  const handleViewChange = useCallback(
+    async (view: "default" | "editor" | "preview") => {
+      setActiveView(view);
+      try {
+        await editorRef.current?.setView(view);
+      } catch {}
+    },
+    []
+  );
 
   // ── Panel toggle & undock ─────────────────────────────────────
   const handleToggle = useCallback((id: string) => {
     setPanelStates((prev) => {
       const current = prev[id];
-      if (current === "undocked") return prev; // can't toggle undocked
+      if (current === "undocked") return prev;
       return { ...prev, [id]: current === "visible" ? "hidden" : "visible" };
     });
   }, []);
@@ -316,14 +352,54 @@ const PDEPage = () => {
           </Button>
           <Flame className="h-5 w-5 text-forge-transaction" />
           <span className="font-semibold">LAMPForge PDE</span>
+          {isRad && (
+            <span className="rounded-full bg-forge-transaction/20 px-2 py-0.5 text-[10px] font-bold text-forge-transaction">
+              RAD 2.0
+            </span>
+          )}
         </div>
 
-        <PanelToggleBar
-          panels={PANEL_CONFIGS}
-          states={panelStates}
-          onToggle={handleToggle}
-          onUndock={handleUndock}
-        />
+        <div className="flex items-center gap-2">
+          <PanelToggleBar
+            panels={PANEL_CONFIGS}
+            states={panelStates}
+            onToggle={handleToggle}
+            onUndock={handleUndock}
+          />
+
+          {/* View mode toggles — RAD 2.0 only */}
+          {isRad && (
+            <div className="ml-2 flex items-center gap-0.5 rounded-md border border-border p-0.5">
+              <Button
+                variant={activeView === "editor" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-6 gap-1 px-2 text-[10px]"
+                onClick={() => handleViewChange("editor")}
+              >
+                <Code className="h-3 w-3" />
+                Editor
+              </Button>
+              <Button
+                variant={activeView === "default" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-6 gap-1 px-2 text-[10px]"
+                onClick={() => handleViewChange("default")}
+              >
+                <Columns className="h-3 w-3" />
+                Split
+              </Button>
+              <Button
+                variant={activeView === "preview" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-6 gap-1 px-2 text-[10px]"
+                onClick={() => handleViewChange("preview")}
+              >
+                <Eye className="h-3 w-3" />
+                Preview
+              </Button>
+            </div>
+          )}
+        </div>
 
         <Button size="sm" className="gap-1.5">
           <Play className="h-3.5 w-3.5" />
@@ -387,7 +463,10 @@ const PDEPage = () => {
 
             {/* WebContainer Editor (always visible) */}
             <ResizablePanel defaultSize={canvasVisible ? 60 : 100} minSize={30}>
-              <WebContainerEditor ref={editorRef} />
+              <WebContainerEditor
+                ref={editorRef}
+                scaffoldLevel={scaffoldLevel}
+              />
             </ResizablePanel>
           </ResizablePanelGroup>
         </ResizablePanel>

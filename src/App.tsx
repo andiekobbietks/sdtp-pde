@@ -7,6 +7,8 @@ import LandingPage from "./pages/LandingPage";
 import CanvasPage from "./pages/CanvasPage";
 import WorkbenchPage from "./pages/WorkbenchPage";
 import EvidencePage from "./pages/EvidencePage";
+import PDEPage from "./pages/PDEPage";
+import PDEPanelPage from "./pages/PDEPanelPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -19,6 +21,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/pde" element={<PDEPage />} />
+          <Route path="/pde/panel/:panelId" element={<PDEPanelPage />} />
           <Route path="/canvas" element={<CanvasPage />} />
           <Route path="/workbench" element={<WorkbenchPage />} />
           <Route path="/evidence" element={<EvidencePage />} />

@@ -38,10 +38,10 @@ import EntityNode from "@/components/canvas/EntityNode";
 import TransactionNode from "@/components/canvas/TransactionNode";
 import ForgeStatusNode from "@/components/canvas/ForgeStatusNode";
 import OracleNode from "@/components/canvas/OracleNode";
-import WebContainerEditor, {
-  type WebContainerEditorHandle,
-  type ScaffoldLevel,
-} from "@/components/canvas/WebContainerEditor";
+import CodeOSSFrame, {
+  type CodeOSSFrameHandle,
+} from "@/components/ide/CodeOSSFrame";
+import type { ScaffoldLevel } from "@/components/canvas/WebContainerEditor";
 import CLIPanel from "@/components/pde/CLIPanel";
 import SQLWorkbenchPanel from "@/components/pde/SQLWorkbenchPanel";
 import EvidencePanel, { type LogEntry } from "@/components/pde/EvidencePanel";
@@ -70,19 +70,19 @@ function getDefaultPanelStates(level: ScaffoldLevel): Record<string, PanelState>
     case "exploratory":
       return { canvas: "hidden", sql: "hidden", cli: "visible", evidence: "hidden" };
     case "competent":
-      return { canvas: "visible", sql: "hidden", cli: "visible", evidence: "hidden" };
+      return { canvas: "hidden", sql: "hidden", cli: "visible", evidence: "hidden" };
     case "exemplary":
-      return { canvas: "visible", sql: "visible", cli: "visible", evidence: "hidden" };
+      return { canvas: "hidden", sql: "visible", cli: "visible", evidence: "hidden" };
     case "rad":
-      return { canvas: "visible", sql: "visible", cli: "visible", evidence: "visible" };
+      return { canvas: "hidden", sql: "visible", cli: "visible", evidence: "visible" };
     default:
-      return { canvas: "visible", sql: "visible", cli: "visible", evidence: "visible" };
+      return { canvas: "hidden", sql: "visible", cli: "visible", evidence: "visible" };
   }
 }
 
 const PDEPage = () => {
   const navigate = useNavigate();
-  const editorRef = useRef<WebContainerEditorHandle>(null);
+  const editorRef = useRef<CodeOSSFrameHandle>(null);
 
   // ── React Flow state ────────────────────────────────────────────
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -367,9 +367,8 @@ const PDEPage = () => {
             onUndock={handleUndock}
           />
 
-          {/* View mode toggles — RAD 2.0 only */}
-          {isRad && (
-            <div className="ml-2 flex items-center gap-0.5 rounded-md border border-border p-0.5">
+          {/* View mode toggles */}
+          <div className="ml-2 flex items-center gap-0.5 rounded-md border border-border p-0.5">
               <Button
                 variant={activeView === "editor" ? "secondary" : "ghost"}
                 size="sm"
@@ -398,7 +397,6 @@ const PDEPage = () => {
                 Preview
               </Button>
             </div>
-          )}
         </div>
 
         <Button size="sm" className="gap-1.5">
@@ -463,9 +461,12 @@ const PDEPage = () => {
 
             {/* WebContainer Editor (always visible) */}
             <ResizablePanel defaultSize={canvasVisible ? 60 : 100} minSize={30}>
-              <WebContainerEditor
+              <CodeOSSFrame
                 ref={editorRef}
                 scaffoldLevel={scaffoldLevel}
+                onFileSaved={(path, content) =>
+                  addEvidenceLog("code", "File Saved", `${path} updated in editor`)
+                }
               />
             </ResizablePanel>
           </ResizablePanelGroup>

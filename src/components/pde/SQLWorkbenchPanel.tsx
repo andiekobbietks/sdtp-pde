@@ -76,7 +76,7 @@ const SQLWorkbenchPanel = ({ blueprint, onLog }: SQLWorkbenchPanelProps) => {
     let cancelled = false;
 
     initSqlJs({
-      locateFile: (file: string) => `https://sql.js.org/dist/${file}`,
+      locateFile: () => `https://cdn.jsdelivr.net/npm/sql.js@1.14.0/dist/sql-wasm.wasm`,
     }).then((SQL) => {
       if (cancelled) return;
       const database = new SQL.Database();
@@ -132,7 +132,7 @@ const SQLWorkbenchPanel = ({ blueprint, onLog }: SQLWorkbenchPanelProps) => {
     if (!dbRef.current) return;
     try {
       const res = dbRef.current.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;");
-      if (res.length > 0) {
+      if (res.length > 0 && res[0].values) {
         setTables(res[0].values.map((v) => String(v[0])));
       }
     } catch {
@@ -150,11 +150,11 @@ const SQLWorkbenchPanel = ({ blueprint, onLog }: SQLWorkbenchPanelProps) => {
 
     try {
       const results = dbRef.current.exec(sql);
-      if (results.length > 0) {
+      if (results.length > 0 && results[0].columns) {
         const first = results[0];
         setResult({
           columns: first.columns,
-          rows: first.values.map((row) => row.map((v) => (v === null ? "NULL" : String(v)))),
+          rows: (first.values || []).map((row) => row.map((v) => (v === null ? "NULL" : String(v)))),
         });
       } else {
         setResult({ columns: ["Result"], rows: [["Query executed successfully. No rows returned."]] });
@@ -281,7 +281,7 @@ const SQLWorkbenchPanel = ({ blueprint, onLog }: SQLWorkbenchPanelProps) => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      {result.columns.map((col) => (
+                      {(result.columns || []).map((col) => (
                         <TableHead key={col} className="text-xs font-mono h-8">
                           {col}
                         </TableHead>
@@ -289,7 +289,7 @@ const SQLWorkbenchPanel = ({ blueprint, onLog }: SQLWorkbenchPanelProps) => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {result.rows.map((row, i) => (
+                    {(result.rows || []).map((row, i) => (
                       <TableRow key={i}>
                         {row.map((cell, j) => (
                           <TableCell key={j} className="text-xs font-mono py-1.5">
@@ -301,7 +301,7 @@ const SQLWorkbenchPanel = ({ blueprint, onLog }: SQLWorkbenchPanelProps) => {
                   </TableBody>
                 </Table>
                 <div className="mt-2 px-2 text-[10px] text-muted-foreground">
-                  {result.rows.length} row{result.rows.length !== 1 ? "s" : ""} returned
+                  {(result.rows || []).length} row{(result.rows || []).length !== 1 ? "s" : ""} returned
                 </div>
               </div>
             )}

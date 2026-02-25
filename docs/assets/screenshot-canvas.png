@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" fill="none">
+  <rect width="1200" height="675" rx="8" fill="#0f172a"/>
+  <rect x="0" y="0" width="1200" height="45" fill="#1e293b"/>
+  <text x="60" y="28" font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">🔥 LAMPForge Canvas</text>
+  <rect x="0" y="45" width="700" height="420" fill="#111827"/>
+  <rect x="100" y="100" width="200" height="150" rx="6" fill="#1e293b" stroke="#3b82f6" stroke-width="2"/>
+  <text x="200" y="125" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="#3b82f6">🔵 BLUEPRINT</text>
+  <text x="200" y="150" text-anchor="middle" font-family="monospace" font-size="13" font-weight="700" fill="#e2e8f0">users</text>
+  <text x="120" y="175" font-family="monospace" font-size="10" fill="#94a3b8">id INT PK</text>
+  <text x="120" y="192" font-family="monospace" font-size="10" fill="#94a3b8">name VARCHAR(255)</text>
+  <text x="120" y="209" font-family="monospace" font-size="10" fill="#94a3b8">email VARCHAR(255)</text>
+  <rect x="400" y="100" width="200" height="150" rx="6" fill="#1e293b" stroke="#3b82f6" stroke-width="2"/>
+  <text x="500" y="125" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="#3b82f6">🔵 BLUEPRINT</text>
+  <text x="500" y="150" text-anchor="middle" font-family="monospace" font-size="13" font-weight="700" fill="#e2e8f0">books</text>
+  <line x1="300" y1="175" x2="400" y2="175" stroke="#22c55e" stroke-width="2" stroke-dasharray="5,3"/>
+  <text x="350" y="168" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="#22c55e">1:M</text>
+  <rect x="700" y="45" width="500" height="420" fill="#1a1a2e"/>
+  <text x="950" y="260" text-anchor="middle" font-family="monospace" font-size="14" fill="#475569">WebContainer Editor</text>
+  <rect x="0" y="465" width="1200" height="210" fill="#0a0a14"/>
+  <text x="30" y="500" font-family="monospace" font-size="11" fill="#94a3b8">LAMPForge CLI v1.0.0</text>
+  <text x="30" y="520" font-family="monospace" font-size="11" fill="#94a3b8">lampforge&gt; _</text>
+  <text x="600" y="650" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#475569">📸 Replace with actual screenshot: navigate to /canvas and capture</text>
+</svg>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" fill="none">
+  <rect width="1200" height="675" rx="8" fill="#0f172a"/>
+  <rect x="0" y="0" width="1200" height="45" rx="0" fill="#1e293b"/>
+  <text x="60" y="28" font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">🔥 LAMPForge PDE</text>
+  <text x="500" y="28" font-family="Inter, sans-serif" font-size="11" fill="#94a3b8">Canvas | SQL | CLI | Evidence</text>
+  <text x="900" y="28" font-family="Inter, sans-serif" font-size="11" fill="#94a3b8">Editor | Split | Preview</text>
+  <rect x="0" y="45" width="580" height="400" fill="#111827"/>
+  <text x="290" y="250" text-anchor="middle" font-family="Inter, sans-serif" font-size="16" fill="#475569">Architecture Canvas (React Flow)</text>
+  <rect x="580" y="45" width="620" height="400" fill="#1a1a2e"/>
+  <text x="890" y="250" text-anchor="middle" font-family="monospace" font-size="16" fill="#475569">Code-OSS / StackBlitz Editor</text>
+  <rect x="0" y="445" width="1200" height="230" fill="#0a0a14"/>
+  <text x="30" y="475" font-family="monospace" font-size="12" fill="#22c55e">╔════════════════════════╗</text>
+  <text x="30" y="495" font-family="monospace" font-size="12" fill="#22c55e">║  LAMP ⚡ FORGE v1.0.0  ║</text>
+  <text x="30" y="515" font-family="monospace" font-size="12" fill="#22c55e">╚════════════════════════╝</text>
+  <text x="30" y="545" font-family="monospace" font-size="11" fill="#94a3b8">lampforge&gt; _</text>
+  <text x="600" y="650" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#475569">📸 Replace with actual screenshot: navigate to /pde and capture</text>
+</svg>

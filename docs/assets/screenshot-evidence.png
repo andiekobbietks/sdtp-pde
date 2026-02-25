@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" fill="none">
+  <rect width="1200" height="675" rx="8" fill="#0f172a"/>
+  <rect x="0" y="0" width="1200" height="45" fill="#1e293b"/>
+  <text x="60" y="28" font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">🔥 Evidence &amp; SDLC Logger</text>
+  <rect x="0" y="45" width="180" height="630" fill="#1e293b"/>
+  <text x="20" y="80" font-family="Inter, sans-serif" font-size="12" font-weight="600" fill="#94a3b8">SDLC Stages</text>
+  <text x="20" y="110" font-family="Inter, sans-serif" font-size="12" fill="#e2e8f0">Analysis        1</text>
+  <text x="20" y="135" font-family="Inter, sans-serif" font-size="12" fill="#e2e8f0">Design          1</text>
+  <text x="20" y="160" font-family="Inter, sans-serif" font-size="12" fill="#e2e8f0">Implementation  2</text>
+  <text x="20" y="185" font-family="Inter, sans-serif" font-size="12" fill="#e2e8f0">Testing         1</text>
+  <text x="20" y="210" font-family="Inter, sans-serif" font-size="12" fill="#94a3b8">Evaluation      0</text>
+  <text x="250" y="90" font-family="Inter, sans-serif" font-size="18" font-weight="600" fill="#e2e8f0">Development Timeline</text>
+  <circle cx="220" cy="130" r="5" fill="#3b82f6"/>
+  <rect x="240" y="115" width="900" height="70" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="260" y="140" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0">📄 Project Initialized</text>
+  <text x="260" y="165" font-family="Inter, sans-serif" font-size="11" fill="#94a3b8">LAMPForge project created from intent declaration.</text>
+  <rect x="1050" y="125" width="70" height="22" rx="4" fill="rgba(168,85,247,0.1)" stroke="rgba(168,85,247,0.3)" stroke-width="1"/>
+  <text x="1085" y="140" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="#a855f7">Analysis</text>
+  <circle cx="220" cy="220" r="5" fill="#3b82f6"/>
+  <rect x="240" y="205" width="900" height="70" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="260" y="230" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0">💾 Schema Generated</text>
+  <text x="260" y="255" font-family="monospace" font-size="10" fill="#22c55e">CREATE TABLE users (id INT PRIMARY KEY, name VARCHAR(255));</text>
+  <rect x="1050" y="215" width="60" height="22" rx="4" fill="rgba(59,130,246,0.1)" stroke="rgba(59,130,246,0.3)" stroke-width="1"/>
+  <text x="1080" y="230" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="#3b82f6">Design</text>
+  <circle cx="220" cy="310" r="5" fill="#3b82f6"/>
+  <rect x="240" y="295" width="900" height="70" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="260" y="320" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0">&lt;/&gt; CRUD Generated</text>
+  <text x="260" y="345" font-family="Inter, sans-serif" font-size="11" fill="#94a3b8">Auto-generated PHP CRUD operations for 'users' entity.</text>
+  <rect x="1020" y="305" width="100" height="22" rx="4" fill="rgba(245,158,11,0.1)" stroke="rgba(245,158,11,0.3)" stroke-width="1"/>
+  <text x="1070" y="320" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="#f59e0b">Implementation</text>
+  <text x="600" y="650" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#475569">📸 Replace with actual screenshot: navigate to /evidence and capture</text>
+</svg>

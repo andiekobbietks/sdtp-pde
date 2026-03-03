@@ -9,6 +9,7 @@ import { forgeSchema, type ForgeProgress } from "@/lib/forge-ai";
 import type { ScaffoldLevel } from "@/lib/forge-types";
 import ForgeIntroAnimation from "@/components/splash/ForgeIntroAnimation";
 import ForgeWalkthrough from "@/components/splash/ForgeWalkthrough";
+import ForgeHUDLoading from "@/components/splash/ForgeHUDLoading";
 
 const templates = [
   {
@@ -116,6 +117,7 @@ const LandingPage = () => {
     <>
       {showSplash && <ForgeIntroAnimation onComplete={handleSplashComplete} />}
       {showWalkthrough && <ForgeWalkthrough onComplete={handleWalkthroughComplete} />}
+      {isForging && <ForgeHUDLoading status={forgeStatus} />}
     <div className="dark min-h-screen bg-background text-foreground">
       {/* Header */}
       <header className="border-b border-border px-6 py-4">

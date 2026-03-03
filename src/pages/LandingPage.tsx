@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Flame, BookOpen, ShoppingCart, GraduationCap, Sparkles, ArrowRight, Zap, Award, Star, Rocket } from "lucide-react";
+import { Flame, BookOpen, ShoppingCart, GraduationCap, Sparkles, ArrowRight, Zap, Award, Star, Rocket, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { forgeSchema, type ForgeProgress } from "@/lib/forge-ai";
 import type { ScaffoldLevel } from "@/lib/forge-types";
@@ -127,6 +127,9 @@ const LandingPage = () => {
             </span>
           </div>
           <nav className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={() => { sessionStorage.removeItem("lampforge-intro-seen"); setShowSplash(true); }}>
+              <RotateCcw className="h-3.5 w-3.5" /> Replay Intro
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate("/workbench")}>
               SQL Workbench
             </Button>

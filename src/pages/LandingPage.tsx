@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { Flame, BookOpen, ShoppingCart, GraduationCap, Sparkles, ArrowRight, Zap
 import { toast } from "sonner";
 import { forgeSchema, type ForgeProgress } from "@/lib/forge-ai";
 import type { ScaffoldLevel } from "@/lib/forge-types";
+import ForgeIntroAnimation from "@/components/splash/ForgeIntroAnimation";
+import ForgeWalkthrough from "@/components/splash/ForgeWalkthrough";
 
 const templates = [
   {
@@ -60,11 +62,24 @@ const scaffoldOptions: { value: ScaffoldLevel; label: string; description: strin
 ];
 
 const LandingPage = () => {
+  const hasSeenIntro = sessionStorage.getItem("lampforge-intro-seen");
+  const [showSplash, setShowSplash] = useState(!hasSeenIntro);
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [intent, setIntent] = useState("");
   const [scaffoldLevel, setScaffoldLevel] = useState<ScaffoldLevel>("rad");
   const [isForging, setIsForging] = useState(false);
   const [forgeStatus, setForgeStatus] = useState("");
   const navigate = useNavigate();
+
+  const handleSplashComplete = useCallback(() => {
+    setShowSplash(false);
+    setShowWalkthrough(true);
+  }, []);
+
+  const handleWalkthroughComplete = useCallback(() => {
+    setShowWalkthrough(false);
+    sessionStorage.setItem("lampforge-intro-seen", "1");
+  }, []);
 
   const handleForge = async (text: string) => {
     if (!text.trim()) return;
@@ -98,6 +113,9 @@ const LandingPage = () => {
   };
 
   return (
+    <>
+      {showSplash && <ForgeIntroAnimation onComplete={handleSplashComplete} />}
+      {showWalkthrough && <ForgeWalkthrough onComplete={handleWalkthroughComplete} />}
     <div className="dark min-h-screen bg-background text-foreground">
       {/* Header */}
       <header className="border-b border-border px-6 py-4">
@@ -233,6 +251,7 @@ const LandingPage = () => {
         </div>
       </main>
     </div>
+    </>
   );
 };
 

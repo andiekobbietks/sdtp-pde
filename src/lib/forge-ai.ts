@@ -2,8 +2,10 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   type ForgeBlueprint,
   type ScaffoldLevel,
+  type TargetStack,
   validateBlueprint,
   getBlueprintToolSchema,
+  STACK_MIGRATION_GUIDES,
 } from "./forge-types";
 
 // ── Route policies for Arch-Router-1.5B ──────────────────────────
@@ -37,6 +39,69 @@ const LOCAL_ENDPOINTS = [
 ];
 
 const OLLAMA_ENDPOINT = "http://localhost:11434/v1/chat/completions";
+
+// ── Model Discovery ─────────────────────────────────────────────
+
+export interface FoundryModelInfo {
+  id: string;
+  name: string;
+  provider: string;
+}
+
+export async function discoverLocalModels(): Promise<FoundryModelInfo[]> {
+  const models: FoundryModelInfo[] = [];
+
+  // Probe Foundry Local
+  for (const base of ["http://localhost:5273", "http://localhost:5272"]) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`${base}/v1/models`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        const data = await res.json();
+        const list = data.data || data.models || [];
+        for (const m of list) {
+          models.push({
+            id: m.id || m.name,
+            name: m.id || m.name,
+            provider: "foundry-local",
+          });
+        }
+      }
+    } catch {
+      // Not available
+    }
+  }
+
+  // Probe Ollama
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch("http://localhost:11434/api/tags", {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      for (const m of data.models || []) {
+        models.push({
+          id: m.name,
+          name: m.name,
+          provider: "ollama",
+        });
+      }
+    }
+  } catch {
+    // Not available
+  }
+
+  return models;
+}
 
 // ── System prompts ───────────────────────────────────────────────
 
@@ -117,7 +182,6 @@ async function tryArchRouter(
     max_tokens: 50,
   };
 
-  // Try Ollama first (common for Arch-Router), then Foundry Local endpoints
   const endpoints = [OLLAMA_ENDPOINT, ...LOCAL_ENDPOINTS];
 
   for (const endpoint of endpoints) {
@@ -139,7 +203,6 @@ async function tryArchRouter(
       const data = await response.json();
       const content = data.choices?.[0]?.message?.content || "";
 
-      // Parse route from response
       try {
         const parsed = JSON.parse(content);
         if (parsed.route && ROUTE_POLICIES.some((p) => p.name === parsed.route)) {
@@ -147,7 +210,6 @@ async function tryArchRouter(
           return parsed.route;
         }
       } catch {
-        // Try extracting route name from unstructured text
         for (const policy of ROUTE_POLICIES) {
           if (content.toLowerCase().includes(policy.name)) {
             onProgress?.(`Route: ${policy.name} (via Arch-Router)`);
@@ -156,7 +218,6 @@ async function tryArchRouter(
         }
       }
     } catch {
-      // Connection refused or timeout — try next endpoint
       continue;
     }
   }
@@ -178,7 +239,6 @@ async function tryFoundryLocal(
   const toolSchema = getBlueprintToolSchema();
   const systemPrompt = getSystemPrompt(scaffoldLevel, routeContext);
 
-  // Strategy 1: Tool-calling (Phi-4-mini supports this)
   const toolPayload = {
     messages: [
       { role: "system", content: systemPrompt },
@@ -190,7 +250,6 @@ async function tryFoundryLocal(
     max_tokens: 4096,
   };
 
-  // Strategy 2: JSON-in-prompt fallback (for models without tool-calling)
   const jsonPayload = {
     messages: [
       {
@@ -204,7 +263,6 @@ async function tryFoundryLocal(
   };
 
   for (const endpoint of LOCAL_ENDPOINTS) {
-    // Try tool-calling first
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
@@ -221,7 +279,6 @@ async function tryFoundryLocal(
       if (response.ok) {
         const data = await response.json();
 
-        // Extract from tool call
         const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
         if (toolCall?.function?.arguments) {
           const args =
@@ -235,7 +292,6 @@ async function tryFoundryLocal(
           return blueprint;
         }
 
-        // Maybe the model returned JSON in content instead of tool call
         const content = data.choices?.[0]?.message?.content;
         if (content) {
           const parsed = extractJSON(content);
@@ -248,10 +304,9 @@ async function tryFoundryLocal(
         }
       }
     } catch {
-      // Tool-calling failed on this endpoint — try JSON fallback
+      // Tool-calling failed — try JSON fallback
     }
 
-    // Try JSON-in-prompt fallback on same endpoint
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
@@ -320,14 +375,60 @@ async function tryCloudFallback(
   return blueprint;
 }
 
+// ── Post-processing: inject stack migration notes + route_policy ──
+
+function postProcess(
+  blueprint: ForgeBlueprint,
+  route: string | null,
+  provider: string
+): ForgeBlueprint {
+  // Inject route_policy into IR
+  if (route) {
+    const policy = ROUTE_POLICIES.find((p) => p.name === route);
+    blueprint.route_policy = {
+      name: route,
+      model_hint: policy?.model_hint || "",
+      confidence: 1,
+    };
+  }
+
+  // If target_stack is not lamp, inject migration notes
+  const stack = blueprint.target_stack || "lamp";
+  if (stack !== "lamp" && STACK_MIGRATION_GUIDES[stack]) {
+    const existingNotes = blueprint.rad_migration_notes || [];
+    const stackNotes = STACK_MIGRATION_GUIDES[stack];
+    // Merge without duplicates
+    const merged = [...existingNotes];
+    for (const note of stackNotes) {
+      if (!merged.includes(note)) {
+        merged.push(note);
+      }
+    }
+    blueprint.rad_migration_notes = merged;
+  }
+
+  return blueprint;
+}
+
 // ── Public API ──────────────────────────────────────────────────
+
+export interface ForgeResult {
+  blueprint: ForgeBlueprint;
+  provider: string;
+  route: string;
+  localModels?: FoundryModelInfo[];
+}
 
 export async function forgeSchema(
   intent: string,
   scaffoldLevel: ScaffoldLevel,
-  onProgress?: ForgeProgress
-): Promise<{ blueprint: ForgeBlueprint; provider: string; route?: string }> {
-  // Stage 1: Route classification (optional — skipped if Arch-Router unavailable)
+  onProgress?: ForgeProgress,
+  targetStack?: TargetStack
+): Promise<ForgeResult> {
+  // Stage 0: Model discovery (fire-and-forget, parallel with routing)
+  const modelDiscovery = discoverLocalModels();
+
+  // Stage 1: Route classification
   const route = await tryArchRouter(intent, onProgress);
 
   // Stage 2: Generation — try local first, then cloud
@@ -338,38 +439,48 @@ export async function forgeSchema(
     onProgress
   );
 
+  let blueprint: ForgeBlueprint;
+  let provider: string;
+
   if (localBlueprint) {
-    return {
-      blueprint: localBlueprint,
-      provider: "foundry-local",
-      route: route || "schema_generation",
-    };
+    blueprint = localBlueprint;
+    provider = "foundry-local";
+  } else {
+    blueprint = await tryCloudFallback(
+      intent,
+      scaffoldLevel,
+      route || undefined,
+      onProgress
+    );
+    provider = "cloud";
   }
 
-  // Cloud fallback
-  const cloudBlueprint = await tryCloudFallback(
-    intent,
-    scaffoldLevel,
-    route || undefined,
-    onProgress
-  );
+  // Set target_stack if specified
+  if (targetStack) {
+    blueprint.target_stack = targetStack;
+  }
+
+  // Post-process: inject route_policy + stack migration notes
+  blueprint = postProcess(blueprint, route, provider);
+
+  // Await model discovery
+  const localModels = await modelDiscovery;
 
   return {
-    blueprint: cloudBlueprint,
-    provider: "cloud",
+    blueprint,
+    provider,
     route: route || "schema_generation",
+    localModels: localModels.length > 0 ? localModels : undefined,
   };
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
 
 function extractJSON(text: string): unknown | null {
-  // Try direct parse
   try {
     return JSON.parse(text);
   } catch { /* continue */ }
 
-  // Try extracting from code fences
   const fenceMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
   if (fenceMatch) {
     try {
@@ -377,7 +488,6 @@ function extractJSON(text: string): unknown | null {
     } catch { /* continue */ }
   }
 
-  // Try finding JSON object boundaries
   const firstBrace = text.indexOf("{");
   const lastBrace = text.lastIndexOf("}");
   if (firstBrace !== -1 && lastBrace > firstBrace) {

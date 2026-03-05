@@ -62,11 +62,13 @@ const CanvasPage = () => {
     hasPopulated.current = true;
     const provider = sessionStorage.getItem("lampforge-provider") || "unknown";
     const route = sessionStorage.getItem("lampforge-route") || "schema_generation";
+    const localModelsRaw = sessionStorage.getItem("lampforge-local-models");
 
     // Clean up sessionStorage
     sessionStorage.removeItem("lampforge-blueprint");
     sessionStorage.removeItem("lampforge-provider");
     sessionStorage.removeItem("lampforge-route");
+    sessionStorage.removeItem("lampforge-local-models");
 
     let blueprint: ForgeBlueprint;
     try {
@@ -75,13 +77,19 @@ const CanvasPage = () => {
       return;
     }
 
-    populateFromBlueprint(blueprint, provider, route);
+    let localModels: { id: string; name: string; provider: string }[] | undefined;
+    if (localModelsRaw) {
+      try { localModels = JSON.parse(localModelsRaw); } catch { /* ignore */ }
+    }
+
+    populateFromBlueprint(blueprint, provider, route, localModels);
   }, []);
 
   const populateFromBlueprint = (
     blueprint: ForgeBlueprint,
     provider: string,
-    route: string
+    route: string,
+    localModels?: { id: string; name: string; provider: string }[]
   ) => {
     const newNodes: Node[] = [];
     const newEdges: Edge[] = [];
@@ -138,13 +146,18 @@ const CanvasPage = () => {
       });
     }
 
-    // Forge status node
+    // Forge status node — now with full telemetry
     newNodes.push({
       id: "forge-status",
       type: "forgeStatus",
       position: { x: 100, y: -80 },
       data: {
         label: `${provider} | ${blueprint.scaffold_level} | ${route}`,
+        provider,
+        route,
+        scaffoldLevel: blueprint.scaffold_level,
+        targetStack: blueprint.target_stack || "lamp",
+        localModels,
       },
     });
 

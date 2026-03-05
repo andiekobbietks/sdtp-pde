@@ -98,6 +98,9 @@ const LandingPage = () => {
       sessionStorage.setItem("lampforge-blueprint", JSON.stringify(result.blueprint));
       sessionStorage.setItem("lampforge-provider", result.provider);
       sessionStorage.setItem("lampforge-route", result.route || "schema_generation");
+      if (result.localModels) {
+        sessionStorage.setItem("lampforge-local-models", JSON.stringify(result.localModels));
+      }
 
       setForgeStatus("Compiling architecture...");
       toast.success(`Blueprint forged via ${result.provider}`, {

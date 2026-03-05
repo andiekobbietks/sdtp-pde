@@ -37,6 +37,9 @@ Produce the most robust, production-grade normalized schema possible. No grade c
 - If the user mentions a non-LAMP stack, still produce the LAMP reference but add rad_migration_notes.`,
 };
 
+// Auto-derived tool schema — mirrors the Zod schema in forge-types.ts
+// This is kept in sync with the client-side schema; the canonical source of truth
+// is the Zod definition, and this is the edge-function equivalent.
 const TOOL_SCHEMA = {
   type: "function",
   function: {
@@ -58,6 +61,12 @@ const TOOL_SCHEMA = {
         scaffold_level: {
           type: "string",
           enum: ["exploratory", "competent", "exemplary", "rad"],
+        },
+        target_stack: {
+          type: "string",
+          enum: ["lamp", "honc", "mern", "django", "mamp", "wamp"],
+          default: "lamp",
+          description: "Target deployment stack. LAMP is always generated; others add migration notes.",
         },
         entities: {
           type: "array",
@@ -144,6 +153,15 @@ const TOOL_SCHEMA = {
               properties: { host: { type: "string" }, port: { type: "number" }, name: { type: "string" }, user: { type: "string" } },
             },
             session: { type: "object", properties: { max_age: { type: "number" } } },
+          },
+        },
+        route_policy: {
+          type: "object",
+          description: "Arch-Router classification persisted in the IR for canvas inspection",
+          properties: {
+            name: { type: "string" },
+            model_hint: { type: "string", default: "" },
+            confidence: { type: "number", default: 1 },
           },
         },
         rad_migration_notes: { type: "array", items: { type: "string" } },
@@ -251,7 +269,6 @@ Entity and field names MUST be snake_case. Every entity MUST have an "id" field 
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } catch {
-        // Try extracting JSON from fences
         const match = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
         if (match) {
           const parsed = JSON.parse(match[1]);

@@ -1,9 +1,13 @@
 import { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 
 // ── Enums ──────────────────────────────────────────────────────────
 
 export const ScaffoldLevelSchema = z.enum(["exploratory", "competent", "exemplary", "rad"]);
 export type ScaffoldLevel = z.infer<typeof ScaffoldLevelSchema>;
+
+export const TargetStackSchema = z.enum(["lamp", "honc", "mern", "django", "mamp", "wamp"]);
+export type TargetStack = z.infer<typeof TargetStackSchema>;
 
 export const MysqlTypeSchema = z.enum([
   "INT", "BIGINT", "SMALLINT", "TINYINT",
@@ -23,11 +27,20 @@ export const CrudOpSchema = z.enum(["CREATE", "READ", "UPDATE", "DELETE"]);
 
 export const PageLayoutSchema = z.enum(["table-crud", "form", "dashboard", "detail"]);
 
+// ── Route Policy ──────────────────────────────────────────────────
+
+export const RoutePolicySchema = z.object({
+  name: z.string().describe("Route classification name from Arch-Router"),
+  model_hint: z.string().default("").describe("Suggested model for this route class"),
+  confidence: z.number().min(0).max(1).default(1).describe("Router confidence score"),
+});
+export type RoutePolicy = z.infer<typeof RoutePolicySchema>;
+
 // ── Field ──────────────────────────────────────────────────────────
 
 export const ForgeFieldSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9_]*$/, "Field name must be snake_case"),
-  type: z.string(), // Allow "VARCHAR(255)" etc — loose match
+  type: z.string().describe("SQL column type, e.g. VARCHAR(255), INT, TEXT"),
   constraint: z.string().default(""),
   nullable: z.boolean().default(true),
   default: z.string().optional(),
@@ -119,11 +132,13 @@ export const ForgeBlueprintSchema = z.object({
     dialect: z.string().default("mysql"),
   }),
   scaffold_level: ScaffoldLevelSchema,
+  target_stack: TargetStackSchema.default("lamp"),
   entities: z.array(ForgeEntitySchema).min(1),
   relationships: z.array(ForgeRelationshipSchema).default([]),
   transactions: z.array(ForgeTransactionSchema).default([]),
   pages: z.array(ForgePageSchema).default([]),
   config: ForgeConfigSchema.default({}),
+  route_policy: RoutePolicySchema.optional().describe("Arch-Router classification persisted in the IR"),
   rad_migration_notes: z.array(z.string()).optional(),
 });
 export type ForgeBlueprint = z.infer<typeof ForgeBlueprintSchema>;
@@ -161,143 +176,79 @@ export function validateBlueprint(raw: unknown): ForgeBlueprint {
   return result;
 }
 
-// ── Tool Schema for AI ────────────────────────────────────────────
+// ── Auto-derived Tool Schema (single source of truth) ─────────────
+// Replaces the 130-line hand-maintained getBlueprintToolSchema().
+// The Zod schema IS the source of truth; the JSON Schema is derived.
 
-export function getBlueprintToolSchema() {
+let _cachedToolSchema: ReturnType<typeof _buildToolSchema> | null = null;
+
+function _buildToolSchema() {
+  const jsonSchema = zodToJsonSchema(ForgeBlueprintSchema, {
+    name: "ForgeBlueprint",
+    $refStrategy: "none",        // inline all definitions — no $ref
+    errorMessages: false,
+    target: "openAi",            // OpenAI-compatible output
+  });
+
+  // Extract just the properties schema (strip the wrapper)
+  const schema = jsonSchema as Record<string, unknown>;
+  const properties = (schema.properties ?? schema) as Record<string, unknown>;
+
   return {
     type: "function" as const,
     function: {
       name: "generate_blueprint",
       description:
-        "Generate a ForgeBlueprint — a complete LAMP application architecture from the user's intent.",
+        "Generate a ForgeBlueprint — a complete LAMP application architecture from the user's intent. " +
+        "The IR supports multiple target stacks via the target_stack field, and persists the Arch-Router " +
+        "classification in route_policy for canvas inspection.",
       parameters: {
         type: "object",
-        properties: {
-          version: { type: "string", default: "1.0" },
-          project: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              description: { type: "string" },
-              dialect: { type: "string", default: "mysql" },
-            },
-            required: ["name"],
-          },
-          scaffold_level: {
-            type: "string",
-            enum: ["exploratory", "competent", "exemplary", "rad"],
-          },
-          entities: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                name: { type: "string", description: "snake_case entity name" },
-                fields: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      name: { type: "string" },
-                      type: { type: "string" },
-                      constraint: { type: "string", default: "" },
-                      nullable: { type: "boolean", default: true },
-                      default: { type: "string" },
-                      references: {
-                        type: "object",
-                        properties: {
-                          entity: { type: "string" },
-                          field: { type: "string" },
-                        },
-                      },
-                    },
-                    required: ["name", "type"],
-                  },
-                },
-                indexes: { type: "array", items: { type: "string" } },
-                audit: { type: "boolean", default: false },
-              },
-              required: ["name", "fields"],
-            },
-          },
-          relationships: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                name: { type: "string" },
-                from: { type: "string" },
-                to: { type: "string" },
-                cardinality: { type: "string", enum: ["1:1", "1:M", "M:M"] },
-                on_delete: { type: "string", default: "CASCADE" },
-                on_update: { type: "string", default: "CASCADE" },
-              },
-              required: ["name", "from", "to", "cardinality"],
-            },
-          },
-          transactions: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                entity: { type: "string" },
-                operations: {
-                  type: "array",
-                  items: { type: "string", enum: ["CREATE", "READ", "UPDATE", "DELETE"] },
-                },
-                auth: { type: "boolean", default: false },
-                validation: { type: "array", items: { type: "string" } },
-                pagination: { type: "boolean", default: false },
-              },
-              required: ["entity", "operations"],
-            },
-          },
-          pages: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                route: { type: "string" },
-                title: { type: "string" },
-                entity: { type: "string" },
-                layout: { type: "string", enum: ["table-crud", "form", "dashboard", "detail"] },
-                fields: { type: "array", items: { type: "string" } },
-              },
-              required: ["route", "title", "entity"],
-            },
-          },
-          config: {
-            type: "object",
-            properties: {
-              server: {
-                type: "object",
-                properties: {
-                  port: { type: "number" },
-                  host: { type: "string" },
-                },
-              },
-              database: {
-                type: "object",
-                properties: {
-                  host: { type: "string" },
-                  port: { type: "number" },
-                  name: { type: "string" },
-                  user: { type: "string" },
-                },
-              },
-              session: {
-                type: "object",
-                properties: {
-                  max_age: { type: "number" },
-                },
-              },
-            },
-          },
-          rad_migration_notes: { type: "array", items: { type: "string" } },
-        },
+        properties,
         required: ["project", "scaffold_level", "entities"],
         additionalProperties: false,
       },
     },
   };
 }
+
+export function getBlueprintToolSchema() {
+  if (!_cachedToolSchema) {
+    _cachedToolSchema = _buildToolSchema();
+  }
+  return _cachedToolSchema;
+}
+
+// ── Stack Migration Notes ─────────────────────────────────────────
+
+export const STACK_MIGRATION_GUIDES: Record<string, string[]> = {
+  honc: [
+    "HONC: Replace MySQL DDL with Drizzle ORM schema definitions (pgTable/sqliteTable)",
+    "HONC: Swap PHP CRUD endpoints for Hono route handlers with typed middleware",
+    "HONC: Deploy to Cloudflare Workers (V8 isolates, <5ms cold start)",
+    "HONC: Use drizzle-zod to auto-derive validators from schema — single source of truth",
+    "HONC: Use D1 (SQLite at edge) or Neon (serverless Postgres) as database",
+  ],
+  mern: [
+    "MERN: Replace MySQL tables with Mongoose schemas (MongoDB documents)",
+    "MERN: Swap PHP CRUD for Express.js route handlers with async/await",
+    "MERN: Use React components instead of server-rendered HTML forms",
+    "MERN: Session management via express-session + connect-mongo or JWT",
+  ],
+  django: [
+    "Django: Convert entities to Django models (models.py) with ORM field types",
+    "Django: Use Django REST Framework for CRUD API endpoints",
+    "Django: Replace HTML forms with Django templates + CSRF middleware",
+    "Django: Migrations handled by 'python manage.py makemigrations'",
+  ],
+  mamp: [
+    "MAMP: Identical LAMP output — configure MAMP's Apache+MySQL paths",
+    "MAMP: Place PHP files in /Applications/MAMP/htdocs/ (macOS)",
+    "MAMP: Access via http://localhost:8888 (default MAMP port)",
+  ],
+  wamp: [
+    "WAMP: Identical LAMP output — configure WampServer paths",
+    "WAMP: Place PHP files in C:\\wamp64\\www\\",
+    "WAMP: Access via http://localhost (default WAMP port)",
+  ],
+};
